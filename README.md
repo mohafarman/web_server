@@ -5,10 +5,15 @@ I am attempting at writing a functional web server in C for educational purposes
 ## To do:
 
 [x] - Set up a server simple "Hellow World" server
+
 [] - Implement routing: Hash table &/or binary search tree
+
 [] - Serve web pages
+
 [] - Handle Error 404
+
 [] - Implement cache
+
 [] - Concurrency (IPC)
 
 ## Sources
