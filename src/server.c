@@ -13,7 +13,8 @@
 #define PORT "3490"
 #define BACKLOG 10
 
-void sigchld_handler(int signum) {
+void 
+sigchld_handler(int signum) {
 
 	(void)signum;
 	// waitpid() might overwrite errno, so we save and restore it:
@@ -24,7 +25,8 @@ void sigchld_handler(int signum) {
     errno = saved_errno;
 }
 
-void *get_in_addr(struct sockaddr *sa) {
+void 
+*get_in_addr(struct sockaddr *sa) {
 
 	if (sa->sa_family == AF_INET) {
 		return &(((struct sockaddr_in*)sa)->sin_addr);
@@ -33,20 +35,36 @@ void *get_in_addr(struct sockaddr *sa) {
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+uint16_t 
+get_port(struct sockaddr_storage addr) {
+    if (addr.ss_family == AF_INET) {			// IPv4
+        struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+        return ntohs(s->sin_port);
+    } else if (addr.ss_family == AF_INET6) {	// IPv6
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+        return ntohs(s->sin6_port);
+    } else {
+        fprintf(stderr, "Unknown address family\n");
+		return 0;
+    }
+}
+
 int main(int argc, char *argv[]) {
 	(void)argc;
 	(void)argv;
 
 	int sockfd, newfd;
-	int status, return_value = 0, yes = 1;
-	char str_inet[INET6_ADDRSTRLEN];
+	int return_value = 0, yes = 1;
+	char str_inet[INET_ADDRSTRLEN];
+	char *hello = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
 	socklen_t sin_size;
+	pid_t pid;
 	struct addrinfo hints, *results, *p;
 	struct sockaddr_storage their_addr;
 	struct sigaction sig_action;
 
 	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;		// 
+	hints.ai_family = AF_UNSPEC;		// IPv4 or IPv6
 	hints.ai_socktype = SOCK_STREAM;	// TCP
 	hints.ai_flags = AI_PASSIVE;		// use my IP
 
@@ -118,17 +136,26 @@ int main(int argc, char *argv[]) {
 				get_in_addr((struct sockaddr *)&their_addr),
 				str_inet, sizeof str_inet);
 
-		printf("Server: got connection from %s\n", str_inet);
+		printf("Server: got connection from %s:%d\n", str_inet, get_port(their_addr));
 
-		if (!fork()) {
-			close(sockfd);
-			if (send(newfd, "Hello, World!\n", 14, 0) == -1) {
-				perror("Server: send\n");
-			}
-			close(newfd);
-			exit(EXIT_SUCCESS);
+		if ((pid = fork()) == -1) {
+			perror("Fork failed\n");
 		}
-		close(newfd);
+
+		switch(pid) {
+			case 0:			// Child process
+				close(sockfd);
+				if (send(newfd, hello, strlen(hello), 0) == -1) {
+					perror("Server: send\n");
+				}
+				close(newfd);
+				exit(EXIT_SUCCESS);
+
+			default:		// Parent process
+				// Parent doesn't need this fd
+				close(newfd);
+		}
+
 	}
 
 	return 0;
