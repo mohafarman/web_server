@@ -13,3 +13,9 @@ PROGRAM: $(PROGRAM).c
 	@./build/$(PROGRAM)
 
 $(PROGRAM).c:
+
+# Run with -v, verbose, flag
+v: $(PROGRAM).c
+	#@mkdir ../build
+	$(COMPILE) $(CFLAGS) $(SRC_DIRS)/$(PROGRAM).c -o ./build/$(PROGRAM)
+	@./build/$(PROGRAM) -v

@@ -2,27 +2,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <sys/socket.h>		// SOMAXCONN
 #include <sys/wait.h>
 #include <arpa/inet.h>
 #include <signal.h>
 #include <netdb.h>
-#include <unistd.h> // for close
+#include <unistd.h>			// close
 #include <errno.h>
 
 #define PORT "3490"
-#define BACKLOG 10
+#define BUFFER_SIZE 2048
+#define ENABLE_DEBUG 1		// Enables debug code if set to 1
 
 void 
 sigchld_handler(int signum) {
 
 	(void)signum;
 	// waitpid() might overwrite errno, so we save and restore it:
-    int saved_errno = errno;
+	int saved_errno = errno;
 
-    while(waitpid(-1, NULL, WNOHANG) > 0);
+	while(waitpid(-1, NULL, WNOHANG) > 0);
 
-    errno = saved_errno;
+	errno = saved_errno;
 }
 
 void 
@@ -37,31 +38,41 @@ void
 
 uint16_t 
 get_port(struct sockaddr_storage addr) {
-    if (addr.ss_family == AF_INET) {			// IPv4
-        struct sockaddr_in *s = (struct sockaddr_in *)&addr;
-        return ntohs(s->sin_port);
-    } else if (addr.ss_family == AF_INET6) {	// IPv6
-        struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
-        return ntohs(s->sin6_port);
-    } else {
-        fprintf(stderr, "Unknown address family\n");
+	if (addr.ss_family == AF_INET) {			// IPv4
+		struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+		return ntohs(s->sin_port);
+	} else if (addr.ss_family == AF_INET6) {	// IPv6
+		struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+		return ntohs(s->sin6_port);
+	} else {
+		fprintf(stderr, "Unknown address family\n");
 		return 0;
-    }
+	}
 }
 
 int main(int argc, char *argv[]) {
-	(void)argc;
-	(void)argv;
 
+	int verbose = 0;
 	int sockfd, newfd;
 	int return_value = 0, yes = 1;
+	char buffer[BUFFER_SIZE];
 	char str_inet[INET_ADDRSTRLEN];
-	char *hello = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
+	char *response = "HTTP/1.0 200 OK\r\n"
+		"Server: web_server\r\n"
+		"Content-type: text/html\r\n\r\n"
+		"<html>Hello, World</html>\r\n";
 	socklen_t sin_size;
 	pid_t pid;
 	struct addrinfo hints, *results, *p;
 	struct sockaddr_storage their_addr;
 	struct sigaction sig_action;
+
+	// Parse command-line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
+        }
+    }
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;		// IPv4 or IPv6
@@ -69,12 +80,12 @@ int main(int argc, char *argv[]) {
 	hints.ai_flags = AI_PASSIVE;		// use my IP
 
 	if (getaddrinfo(NULL, PORT, &hints, &results) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(return_value));
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(return_value));
 	}
 
 	// Loop through all the results and bind to the first we can
 	for (p = results; p != NULL; p = p->ai_next) {
-		
+
 		// Attempt to open a TCP network connection throw error
 		if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
 			perror("Server: socket\n");
@@ -89,6 +100,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		// Attempt at binding to the socket
+		// "assigning a name to a socket"
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
 			perror("Server: bind\n");
@@ -101,11 +113,13 @@ int main(int argc, char *argv[]) {
 	freeaddrinfo(results);
 
 	if (p == NULL) {
-        fprintf(stderr, "Server: Failed to bind to socket.\n");
+		fprintf(stderr, "Server: Failed to bind to socket.\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if (listen(sockfd, BACKLOG) != 0) {
+	// SOMAXCONN is a constant defined by the OS
+	// set to 128
+	if (listen(sockfd, SOMAXCONN) != 0) {
 		perror("Server: Failed to listen\n");
 	}
 
@@ -145,17 +159,23 @@ int main(int argc, char *argv[]) {
 		switch(pid) {
 			case 0:			// Child process
 				close(sockfd);
-				if (send(newfd, hello, strlen(hello), 0) == -1) {
+
+				if (read(newfd, buffer, 1024) == -1) {
+					perror("Server: read\n");
+				}
+
+				printf("%s", buffer);
+
+				if (send(newfd, response, strlen(response), 0) == -1) {
 					perror("Server: send\n");
 				}
 				close(newfd);
 				exit(EXIT_SUCCESS);
 
 			default:		// Parent process
-				// Parent doesn't need this fd
+							// Parent doesn't need this fd
 				close(newfd);
 		}
-
 	}
 
 	return 0;
