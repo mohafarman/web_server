@@ -119,15 +119,31 @@ int main(int argc, char *argv[]) {
 			case 0:			// Child process
 				close(sockfd);
 
-				if (read(newfd, buffer, 1024) == -1) {
-					perror("Server: read\n");
+				//if (read(newfd, buffer, 1024) == -1) {
+				//	perror("Server: read\n");
+				//}
+
+				//printf("%s", buffer);
+
+				//if (send(newfd, response, strlen(response), 0) == -1) {
+				//	perror("Server: send\n");
+				//}
+
+				char file_buffer[BUFFER_SIZE];
+				FILE *index_html = fopen("html/index.html", "rb");
+				if (index_html == NULL) {
+					fprintf(stderr, "Error opening index.html file\n");
 				}
 
-				printf("%s", buffer);
+				// Read file into buffer
+				size_t bytes_read = fread(file_buffer, sizeof(char), sizeof buffer, index_html);
 
-				if (send(newfd, response, strlen(response), 0) == -1) {
-					perror("Server: send\n");
+				// Send file
+				if (send(newfd, file_buffer, bytes_read, 0) == -1) {
+					perror("Server: index.html\n");
 				}
+
+				fclose(index_html);
 				close(newfd);
 				exit(EXIT_SUCCESS);
 

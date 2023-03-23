@@ -19,10 +19,4 @@ void
 uint16_t 
 get_port(struct sockaddr_storage addr);
 
-//void 
-//*get_in_addr(struct sockaddr *sa);
-//
-//uint16_t 
-//get_port(struct sockaddr_storage addr);
-
 #endif /* SERVER_H */
