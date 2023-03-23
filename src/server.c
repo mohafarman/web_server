@@ -1,54 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>		// SOMAXCONN
-#include <sys/wait.h>
-#include <arpa/inet.h>
 #include <signal.h>
-#include <netdb.h>
 #include <unistd.h>			// close
 #include <errno.h>
 
-#define PORT "3490"
-#define BUFFER_SIZE 2048
+#include "server.h"
+
 #define ENABLE_DEBUG 1		// Enables debug code if set to 1
-
-void 
-sigchld_handler(int signum) {
-
-	(void)signum;
-	// waitpid() might overwrite errno, so we save and restore it:
-	int saved_errno = errno;
-
-	while(waitpid(-1, NULL, WNOHANG) > 0);
-
-	errno = saved_errno;
-}
-
-void 
-*get_in_addr(struct sockaddr *sa) {
-
-	if (sa->sa_family == AF_INET) {
-		return &(((struct sockaddr_in*)sa)->sin_addr);
-	}
-
-	return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-uint16_t 
-get_port(struct sockaddr_storage addr) {
-	if (addr.ss_family == AF_INET) {			// IPv4
-		struct sockaddr_in *s = (struct sockaddr_in *)&addr;
-		return ntohs(s->sin_port);
-	} else if (addr.ss_family == AF_INET6) {	// IPv6
-		struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
-		return ntohs(s->sin6_port);
-	} else {
-		fprintf(stderr, "Unknown address family\n");
-		return 0;
-	}
-}
 
 int main(int argc, char *argv[]) {
 
@@ -181,3 +140,38 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
+void 
+sigchld_handler(int signum) {
+
+	(void)signum;
+	// waitpid() might overwrite errno, so we save and restore it:
+	int saved_errno = errno;
+
+	while(waitpid(-1, NULL, WNOHANG) > 0);
+
+	errno = saved_errno;
+}
+
+void 
+*get_in_addr(struct sockaddr *sa) {
+
+	if (sa->sa_family == AF_INET) {
+		return &(((struct sockaddr_in*)sa)->sin_addr);
+	}
+
+	return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
+uint16_t 
+get_port(struct sockaddr_storage addr) {
+	if (addr.ss_family == AF_INET) {			// IPv4
+		struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+		return ntohs(s->sin_port);
+	} else if (addr.ss_family == AF_INET6) {	// IPv6
+		struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+		return ntohs(s->sin6_port);
+	} else {
+		fprintf(stderr, "Unknown address family\n");
+		return 0;
+	}
+}
