@@ -330,9 +330,8 @@ int construct_http_header(struct http_response *response) {
       return -1;
     }
   } else if (response->status_code == 400) {
-    if (sprintf(response->http_header, "%s %d %s\r\nServer: %s\r\n",
-                response->protocol_version, response->status_code,
-                response->phrase, PROGRAM_NAME) < 0) {
+    if (sprintf(response->http_header, "HTTP/1.1 %d %s\r\nServer: %s\r\n\r\n",
+                response->status_code, response->phrase, PROGRAM_NAME) < 0) {
       fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
       return -1;
     }
