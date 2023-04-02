@@ -2,21 +2,7 @@
 
 I am attempting at writing a functional web server in C for educational purposes.
 
-## To do:
-
-[x] - Set up a server simple "Hello World" server
-
-[] - Implement routing: Hash table &/or binary search tree
-
-[] - Serve web pages
-
-[] - Handle Error 404
-
-[] - Implement cache
-
-[] - Concurrency (IPC)
-
-## Components of the server
+## TODO:
 
 * TODO 1. Modify your program to parse the request. You can ignore all of the headers for now. For now, you're only responding to validly formatted GET requests. Send the dummy message back for any validly formatted GET requests. If the request is improperly formatted, respond 400. For any other valid requests apart from GET requests, respond with 501.
 
