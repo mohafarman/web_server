@@ -39,7 +39,8 @@ void *get_in_addr(struct sockaddr *sa);
 
 uint16_t get_port(struct sockaddr_storage addr);
 
-int parse_http_request(char buffer[BUFFER_SIZE], struct http_request *request);
+int parse_http_request(char buffer[BUFFER_SIZE], struct http_request *request,
+                       struct http_response *response);
 
 int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
                                struct http_request *request,
@@ -54,5 +55,9 @@ int http_request_handle_method_get(struct http_request *request,
 
 int http_request_handle_url(struct http_request *request,
                             struct http_response *response);
+
+int read_file(struct http_response *response);
+
+int construct_http_header(struct http_response *response);
 
 #endif /* SERVER_H */

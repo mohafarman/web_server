@@ -137,39 +137,6 @@ int main(int argc, char *argv[]) {
       handle_client_http_request(client_buffer_request, http_request,
                                  http_response);
 
-      // TODO: Create a function that handles reading in the file
-      char file_buffer[BUFFER_SIZE];
-      // Serve file based on url returned from the server
-      FILE *fptr = fopen(http_response->url, "r");
-      if (fptr == NULL) {
-        fprintf(stderr, "Error opening index.html file\n");
-      }
-
-      // Get size of file
-      fseek(fptr, 0, SEEK_END);
-      long file_size = ftell(fptr);
-      fseek(fptr, 0, SEEK_SET);
-
-      // Read file into buffer
-      size_t bytes_read = fread(file_buffer, sizeof(char), file_size, fptr);
-
-      // set content length determining bytes read into memory from file
-      // (same as file_size)
-      http_response->content_length = (int)bytes_read;
-
-      // Construct the HTTP header
-      sprintf(http_response->http_header,
-              "%s %d %s\r\nServer: %s\r\nContent-type: %s\r\nContent-length: "
-              "%d\r\n\r\n",
-              http_request->protocol_version, http_response->status_code,
-              http_response->phrase, PROGRAM_NAME, http_response->content_type,
-              http_response->content_length);
-
-      // Append the content (file content) to the response which includes the
-      // HTTP header
-      strcat(http_response->final_response, http_response->http_header);
-      strcat(http_response->final_response, file_buffer);
-
       if (send(newfd, http_response->final_response,
                strlen(http_response->final_response), 0) == -1) {
         perror("Server: send\n");
@@ -225,12 +192,14 @@ uint16_t get_port(struct sockaddr_storage addr) {
   }
 }
 
-int parse_http_request(char buffer[BUFFER_SIZE], struct http_request *request) {
+int parse_http_request(char buffer[BUFFER_SIZE], struct http_request *request,
+                       struct http_response *response) {
   if (sscanf(buffer, "%s %s %s", request->method, request->url,
              request->protocol_version) != 3) {
     return -1;
   }
 
+  strcpy(response->protocol_version, request->protocol_version);
   return 0;
 }
 
@@ -267,9 +236,9 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
                                struct http_response *response) {
 
   // 1. Parse client request
-  if (parse_http_request(client_buffer_request, request) == -1) {
+  if (parse_http_request(client_buffer_request, request, response) == -1) {
     fprintf(stderr, "[HTTP]: Failed to parse client request.\n");
-    return -1;
+    goto formatting_error;
   }
 
   // 2. Respond to method
@@ -285,10 +254,89 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
     return -1;
   }
 
+  // 4. TODO Read file content based on url
+
+  if (read_file(response) == -1) {
+    fprintf(stderr, "[HTTP]: Failed to read in file content.\n");
+    return -1;
+  }
+
+  if (construct_http_header(response) == -1) {
+    fprintf(stderr, "[HTTP]: Failed to construct an HTTP header.\n");
+    return -1;
+  }
+
   // 4. Set phrase
   strcpy(response->phrase, "OK");
 
+  strcat(response->final_response, response->http_header);
+  strcat(response->final_response, response->content);
+
+  return 0;
+
   // Throw response status code errors if necessary eg 404 etc.
   // Finished parsing information from client
+
+formatting_error:
+  response->status_code = 400;
+  strcpy(response->phrase, "Bad Request");
+
+  if (construct_http_header(response) == -1) {
+    fprintf(stderr, "[HTTP]: Failed to construct an HTTP header.\n");
+    return -1;
+  }
+
+  strcat(response->final_response, response->http_header);
+  return 0;
+}
+
+int read_file(struct http_response *response) {
+  char file_buffer[BUFFER_SIZE];
+  // Serve file based on url returned from the server
+  FILE *fptr = fopen(response->url, "r");
+  if (fptr == NULL) {
+    fprintf(stderr, "Error opening index.html file\n");
+  }
+
+  // Get size of file
+  fseek(fptr, 0, SEEK_END);
+  long file_size = ftell(fptr);
+  fseek(fptr, 0, SEEK_SET);
+
+  // Read file into buffer
+  size_t bytes_read = fread(file_buffer, sizeof(char), file_size, fptr);
+
+  // set content length determining bytes read into memory from file
+  // (same as file_size)
+  response->content_length = (int)bytes_read;
+
+  // Append the content (file content) to the response which includes the
+  // HTTP header
+  // strcat(response->final_response, response->http_header);
+  strcat(response->content, file_buffer);
+  return 0;
+}
+
+int construct_http_header(struct http_response *response) {
+  if (response->status_code == 200) {
+    // Construct the HTTP header
+    if (sprintf(response->http_header,
+                "%s %d %s\r\nServer: %s\r\nContent-type: %s\r\nContent-length: "
+                "%d\r\n\r\n",
+                response->protocol_version, response->status_code,
+                response->phrase, PROGRAM_NAME, response->content_type,
+                response->content_length) < 0) {
+      fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
+      return -1;
+    }
+  } else if (response->status_code == 400) {
+    if (sprintf(response->http_header, "%s %d %s\r\nServer: %s\r\n",
+                response->protocol_version, response->status_code,
+                response->phrase, PROGRAM_NAME) < 0) {
+      fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
+      return -1;
+    }
+  }
+
   return 0;
 }
