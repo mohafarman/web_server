@@ -196,6 +196,8 @@ int parse_http_request(char buffer[BUFFER_SIZE], struct http_request *request,
                        struct http_response *response) {
   if (sscanf(buffer, "%s %s %s", request->method, request->url,
              request->protocol_version) != 3) {
+    response->status_code = 400;
+    strcpy(response->phrase, "Bad Request");
     return -1;
   }
 
@@ -210,9 +212,10 @@ int http_request_handle_method_get(struct http_request *request,
     return 0;
   }
 
-  // 400 Bad Request
   // TODO: Do not exit, serve bad request instead
-  response->status_code = 400;
+  // 501 Not Implemented
+  response->status_code = 501;
+  strcpy(response->phrase, "Not Implemented");
   return -1;
 }
 
@@ -238,14 +241,14 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
   // 1. Parse client request
   if (parse_http_request(client_buffer_request, request, response) == -1) {
     fprintf(stderr, "[HTTP]: Failed to parse client request.\n");
-    goto formatting_error;
+    goto error;
   }
 
   // 2. Respond to method
   http_request_handle_method_t func_ptr = &http_request_handle_method_get;
   if ((*func_ptr)(request, response) == -1) {
-    fprintf(stderr, "[HTTP]: Failed to handle method.");
-    return -1;
+    fprintf(stderr, "[HTTP]: Method yet not implemented.");
+    goto error;
   }
 
   // 3. Respond to URL by routing
@@ -274,13 +277,7 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
 
   return 0;
 
-  // Throw response status code errors if necessary eg 404 etc.
-  // Finished parsing information from client
-
-formatting_error:
-  response->status_code = 400;
-  strcpy(response->phrase, "Bad Request");
-
+error:
   if (construct_http_header(response) == -1) {
     fprintf(stderr, "[HTTP]: Failed to construct an HTTP header.\n");
     return -1;
@@ -329,7 +326,7 @@ int construct_http_header(struct http_response *response) {
       fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
       return -1;
     }
-  } else if (response->status_code == 400) {
+  } else {
     if (sprintf(response->http_header, "HTTP/1.1 %d %s\r\nServer: %s\r\n\r\n",
                 response->status_code, response->phrase, PROGRAM_NAME) < 0) {
       fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
