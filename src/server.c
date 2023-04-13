@@ -1,7 +1,7 @@
-#include <stdio.h>
-
+#define _GNU_SOURCE
 #include <errno.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // close
@@ -11,6 +11,8 @@
 
 #define PROGRAM_NAME "web_server"
 #define ENABLE_DEBUG 1 // Enables debug code if set to 1
+
+enum error_flag err_flag_server = server, err_flag_http = http;
 
 int main(int argc, char *argv[]) {
 
@@ -42,7 +44,9 @@ int main(int argc, char *argv[]) {
   hints.ai_flags = AI_PASSIVE;     // use my IP
 
   if (getaddrinfo(NULL, port, &hints, &results) != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(return_value));
+    char *buff[256];
+    asprintf(buff, "getaddrinfo: %s\n", gai_strerror(return_value));
+    print_error(*buff, err_flag_server, __FILE__, __LINE__);
   }
 
   // Loop through all the results and bind to the first we can
@@ -75,7 +79,8 @@ int main(int argc, char *argv[]) {
   freeaddrinfo(results);
 
   if (p == NULL) {
-    fprintf(stderr, "Server: Failed to bind to socket.\n");
+    print_error("Server: Failed to bind to socket.\n", err_flag_server,
+                __FILE__, __LINE__);
     exit(EXIT_FAILURE);
   }
 
@@ -187,7 +192,8 @@ uint16_t get_port(struct sockaddr_storage addr) {
     struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
     return ntohs(s->sin6_port);
   } else {
-    fprintf(stderr, "Unknown address family\n");
+    print_error("Unknown address family\n", err_flag_server, __FILE__,
+                __LINE__);
     return 0;
   }
 }
@@ -224,10 +230,12 @@ int http_request_handle_url(struct http_request *request,
   // TODO: Handle rerouting
   if (strcmp(request->url, "/") == 0) {
     // Use a hash function or bst here: url as a key and the file as a value
+    // Alternatively try out the stb
     strcpy(response->url, "html/index.html");
     strcpy(response->content_type, "text/html");
     return 0;
   }
+
   // 400 Bad Request
   // TODO: Do not exit, serve bad request instead
   response->status_code = 400;
@@ -240,32 +248,36 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
 
   // 1. Parse client request
   if (parse_http_request(client_buffer_request, request, response) == -1) {
-    fprintf(stderr, "[HTTP]: Failed to parse client request.\n");
+    print_error("Failed to parse client request.\n", err_flag_http, __FILE__,
+                __LINE__);
     goto error;
   }
 
   // 2. Respond to method
   http_request_handle_method_t func_ptr = &http_request_handle_method_get;
   if ((*func_ptr)(request, response) == -1) {
-    fprintf(stderr, "[HTTP]: Method yet not implemented.");
+    print_error("Method yet not implemented.", err_flag_http, __FILE__,
+                __LINE__);
     goto error;
   }
 
   // 3. Respond to URL by routing
   if (http_request_handle_url(request, response) == -1) {
-    fprintf(stderr, "[HTTP]: Failed to process URL.\n");
+    print_error("Failed to process URL.\n", err_flag_http, __FILE__, __LINE__);
     return -1;
   }
 
   // 4. TODO Read file content based on url
 
   if (read_file(response) == -1) {
-    fprintf(stderr, "[HTTP]: Failed to read in file content.\n");
+    print_error("Failed to read in file content.\n", err_flag_http, __FILE__,
+                __LINE__);
     return -1;
   }
 
   if (construct_http_header(response) == -1) {
-    fprintf(stderr, "[HTTP]: Failed to construct an HTTP header.\n");
+    print_error("Failed to construct an HTTP header.\n", err_flag_http,
+                __FILE__, __LINE__);
     return -1;
   }
 
@@ -279,7 +291,8 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
 
 error:
   if (construct_http_header(response) == -1) {
-    fprintf(stderr, "[HTTP]: Failed to construct an HTTP header.\n");
+    print_error("Failed to construct an HTTP header.\n", err_flag_http,
+                __FILE__, __LINE__);
     return -1;
   }
 
@@ -292,7 +305,8 @@ int read_file(struct http_response *response) {
   // Serve file based on url returned from the server
   FILE *fptr = fopen(response->url, "r");
   if (fptr == NULL) {
-    fprintf(stderr, "Error opening index.html file\n");
+    print_error("Error opening index.html file\n", err_flag_server, __FILE__,
+                __LINE__);
   }
 
   // Get size of file
@@ -323,13 +337,15 @@ int construct_http_header(struct http_response *response) {
                 response->protocol_version, response->status_code,
                 response->phrase, PROGRAM_NAME, response->content_type,
                 response->content_length) < 0) {
-      fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
+      print_error("Failed to construct a HTTP header.\n", err_flag_http,
+                  __FILE__, __LINE__);
       return -1;
     }
   } else {
     if (sprintf(response->http_header, "HTTP/1.1 %d %s\r\nServer: %s\r\n\r\n",
                 response->status_code, response->phrase, PROGRAM_NAME) < 0) {
-      fprintf(stderr, "[HTTP]: Failed to construct a HTTP header.\n");
+      print_error("Failed to construct a HTTP header.\n", err_flag_http,
+                  __FILE__, __LINE__);
       return -1;
     }
   }

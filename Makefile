@@ -28,7 +28,7 @@ SRC_DIRS := ./src
 HEADER_DIRS := ./include
 
 CC = gcc
-CFLAGS=-Wall -ggdb -Wextra -pedantic -std=gnu11
+CFLAGS=-Wall -ggdb -Wextra -pedantic -std=c11
 LIBS = -lm
 PORT = 4001
 

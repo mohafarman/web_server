@@ -3,7 +3,9 @@
 
 #include "server.h"
 
-// int render_static_file(struct http_response *response);
-char *render_static_file(const char *filename);
+enum error_flag { server, http };
+
+void print_error(const char *error_msg, enum error_flag err_flag,
+                 const char *file, int line);
 
 #endif /* UTILS_H */
