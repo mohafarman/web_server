@@ -10,7 +10,7 @@ BINDIR = bin
 SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 HDRS = $(wildcard $(INCDIR)/*.h)
-TARGET = $(BINDIR)/program
+TARGET = $(BINDIR)/server
 
 all: $(TARGET)
 
