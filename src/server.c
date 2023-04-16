@@ -161,6 +161,9 @@ int main(int argc, char *argv[]) {
       struct http_response *http_response =
           malloc(sizeof(struct http_response));
 
+      /* "Append" the root directory to the response */
+      strcpy(http_response->url, opts.root_dir);
+
       // Read in the client request
       if (read(newfd, client_buffer_request, BUFFER_SIZE) == -1) {
         perror("Server: read\n");
@@ -258,11 +261,14 @@ int http_request_handle_method_get(struct http_request *request,
 
 int http_request_handle_url(struct http_request *request,
                             struct http_response *response) {
-  // TODO: Handle rerouting
+  /*
+   * TODO: Handle rerouting
+   * Use a hash function or bst here: url as a key and the file as a value
+   * Alternatively try out the stb
+   * */
   if (strcmp(request->url, "/") == 0) {
-    // Use a hash function or bst here: url as a key and the file as a value
-    // Alternatively try out the stb
-    strcpy(response->url, "html/index.html");
+    /* Append the final directory/file to the root directory */
+    strcat(response->url, "index.html");
     strcpy(response->content_type, "text/html");
     return 0;
   }
