@@ -31,21 +31,52 @@ int main(int argc, char *argv[]) {
   struct sockaddr_storage their_addr;
   struct sigaction sig_action;
 
-  if (argc < 2) {
-    printf("Usage: %s [PORT]", PROGRAM_NAME);
-    exit(EXIT_FAILURE);
+  /*
+   * Look at the fakesteak.c file and adopt the same way of
+   * argument handling as he does
+   */
+
+  /* TODO: Let the user determine root directory from an argument */
+
+  // parse command line options
+  options_s opts = {0};
+  parse_args(argc, argv, &opts);
+
+  if (opts.help) {
+    help(argv[0], stdout);
+    return EXIT_SUCCESS;
   }
 
-  char *port = argv[1];
+  if (opts.version) {
+    version(stdout);
+    return EXIT_SUCCESS;
+  }
+
+  if (opts.port == NULL) {
+    opts.port = "4001";
+    fprintf(stdout, "Using default port %s\n", opts.port);
+  }
+
+  if (opts.root_dir == NULL) {
+    opts.root_dir = "html/";
+    fprintf(stdout, "Using root directory %s\n", opts.root_dir);
+  }
+
+  /* Check so that the root directory specified exists and we have read
+   * write permissions */
+  if (root_dir_valid(opts.root_dir) == -1) {
+    print_error("Root directory failed.", err_flag_server, __FILE__, __LINE__);
+    exit(EXIT_FAILURE);
+  }
 
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC;     // IPv4 or IPv6
   hints.ai_socktype = SOCK_STREAM; // TCP
   hints.ai_flags = AI_PASSIVE;     // use my IP
 
-  if (getaddrinfo(NULL, port, &hints, &results) != 0) {
+  if (getaddrinfo(NULL, opts.port, &hints, &results) != 0) {
     char *buff[256];
-    asprintf(buff, "getaddrinfo: %s\n", gai_strerror(return_value));
+    asprintf(buff, "getaddrinfo: %s", gai_strerror(return_value));
     print_error(*buff, err_flag_server, __FILE__, __LINE__);
   }
 
@@ -99,7 +130,7 @@ int main(int argc, char *argv[]) {
     perror("Server: sigaction\n");
     exit(EXIT_FAILURE);
   }
-  printf("Server: waiting for connections on port %s...\n", port);
+  printf("Server: waiting for connections on port %s...\n", opts.port);
 
   while (1) {
 
@@ -263,7 +294,7 @@ int handle_client_http_request(char client_buffer_request[BUFFER_SIZE],
 
   // 3. Respond to URL by routing
   if (http_request_handle_url(request, response) == -1) {
-    print_error("Failed to process URL.\n", err_flag_http, __FILE__, __LINE__);
+    print_error("Failed to process URL.", err_flag_http, __FILE__, __LINE__);
     return -1;
   }
 
